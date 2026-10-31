@@ -1,413 +1,1101 @@
+
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
-/* ---------- data ---------- */
+type DashboardData = {
+  metrics: {
+    totalJobs: number;
+    activeJobs: number;
+    totalCandidates: number;
+    shortlisted: number;
+    interviewsNextSevenDays: number;
+  };
+  pipeline: {
+    pendingReview: number;
+    shortlisted: number;
+    notShortlisted: number;
+  };
+  recentCandidates: {
+    id: string;
+    name: string;
+    email: string | null;
+    jobTitle: string;
+    score: number | null;
+    status: string;
+    createdAt: string;
+  }[];
+  upcomingInterviews: {
+    id: string;
+    candidateName: string;
+    jobTitle: string;
+    startAt: string;
+    endAt: string;
+    status: string;
+    meetingUrl: string | null;
+  }[];
+  recentJobs: {
+    id: string;
+    title: string;
+    status: string;
+    created_at: string;
+  }[];
+};
 
 const navigation = [
-  { label: "Overview", icon: "grid", badge: null },
-  { label: "Jobs", icon: "briefcase", badge: "8" },
-  { label: "Candidates", icon: "users", badge: "124" },
-  { label: "Interviews", icon: "calendar", badge: "12" },
-  { label: "Email workflows", icon: "mail", badge: null },
+  {
+    label: "Overview",
+    href: "/",
+    icon: "grid",
+    count: null,
+  },
+  {
+    label: "Jobs",
+    href: "/jobs",
+    icon: "briefcase",
+    count: "jobs",
+  },
+  {
+    label: "Candidates",
+    href: "/candidates",
+    icon: "users",
+    count: "candidates",
+  },
+  {
+    label: "Interviews",
+    href: "/interviews",
+    icon: "calendar",
+    count: "interviews",
+  },
+  {
+    label: "Interview rooms",
+    href: "/interviews/rooms",
+    icon: "video",
+    count: null,
+  },
+  {
+    label: "Email workflows",
+    href: "/emails",
+    icon: "mail",
+    count: null,
+  },
 ];
-
-const metrics = [
-  { label: "Active jobs", value: 8, note: "Across all departments", trend: "+2 this month", spark: [3, 4, 4, 5, 6, 6, 8] },
-  { label: "Candidates", value: 124, note: "In your hiring pipeline", trend: "+18 this week", spark: [40, 52, 61, 70, 88, 101, 124] },
-  { label: "Interviews", value: 12, note: "Scheduled this week", trend: "5 roles", spark: [4, 6, 5, 8, 7, 10, 12] },
-  { label: "Offers pending", value: 3, note: "Awaiting a decision", trend: "1 due today", spark: [1, 1, 2, 2, 3, 2, 3] },
-];
-
-const pipeline = [
-  { stage: "Applied", count: 124, color: "#d6cfc4" },
-  { stage: "Screened", count: 71, color: "#e9b98f" },
-  { stage: "Interview", count: 28, color: "#e8895a" },
-  { stage: "Offer", count: 3, color: "#c2410c" },
-];
-
-const candidates = [
-  { name: "Aarav Sharma", initials: "AS", role: "Frontend Developer", score: 92, status: "Shortlisted" },
-  { name: "Priya Mehta", initials: "PM", role: "Backend Developer", score: 88, status: "Interview" },
-  { name: "Rohan Verma", initials: "RV", role: "Product Designer", score: 84, status: "Shortlisted" },
-  { name: "Ananya Gupta", initials: "AG", role: "Frontend Developer", score: 78, status: "Under review" },
-];
-
-const interviews = [
-  { name: "Priya Mehta", role: "Backend Developer", time: "10:30 AM", type: "Technical round", done: true },
-  { name: "Aarav Sharma", role: "Frontend Developer", time: "12:00 PM", type: "HR round", done: false },
-  { name: "Rohan Verma", role: "Product Designer", time: "02:30 PM", type: "Portfolio review", done: false },
-];
-
-const filters = ["All", "Shortlisted", "Interview", "Under review"];
-
-/* ---------- small pieces ---------- */
 
 const iconPaths: Record<string, string> = {
   grid: "M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z",
-  briefcase: "M4 8h16v11H4zM9 8V5h6v3M4 13h16",
-  users: "M9 11a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM2.5 20c.6-3.3 3.1-5 6.5-5s5.9 1.7 6.5 5M16 4.5a3.2 3.2 0 010 6M18 15c2 .5 3.2 2 3.5 5",
-  calendar: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
-  mail: "M3 6h18v12H3zM3 7l9 7 9-7",
-  search: "M11 18a7 7 0 100-14 7 7 0 000 14zM20 20l-4-4",
-  plus: "M12 5v14M5 12h14",
-  arrow: "M5 12h14M13 6l6 6-6 6",
-  bell: "M6 17V11a6 6 0 0112 0v6l1.5 2h-15zM10 21h4",
+  briefcase:
+    "M4 8h16v11H4zM9 8V5h6v3M4 13h16",
+  users:
+    "M9 11a3.5 3.5 0 100-7 3.5 3.5 0 000 7zM2.5 20c.6-3.3 3.1-5 6.5-5s5.9 1.7 6.5 5M16 4.5a3.2 3.2 0 010 6M18 15c2 .5 3.2 2 3.5 5",
+  calendar:
+    "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
+  mail:
+    "M3 6h18v12H3zM3 7l9 7 9-7",
+  video:
+    "M15 10l6-4v12l-6-4M3 7h12v10H3z",
+  arrow:
+    "M5 12h14M13 6l6 6-6 6",
+  refresh:
+    "M20 7v5h-5M4 17v-5h5M5.5 9A7 7 0 0118 6l2 6M4 12l2 6a7 7 0 0012.5-1",
+  briefArrow:
+    "M7 17L17 7M7 7h10v10",
+  clock:
+    "M12 8v4l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
 };
 
-function Icon({ name, className = "h-[18px] w-[18px]" }: { name: string; className?: string }) {
+function Icon({
+  name,
+  className = "h-[18px] w-[18px]",
+}: {
+  name: string;
+  className?: string;
+}) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
-      <path d={iconPaths[name]} />
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d={iconPaths[name] || iconPaths.grid} />
     </svg>
   );
 }
 
-function Sparkline({ data }: { data: number[] }) {
-  const w = 96;
-  const h = 32;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - 3 - ((v - min) / (max - min || 1)) * (h - 8)]);
-  const line = pts.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(" ");
-  const last = pts[pts.length - 1];
-  return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="h-8 w-24" aria-hidden>
-      <path d={`${line} L${w} ${h} L0 ${h} Z`} fill="url(#sg)" opacity="0.5" />
-      <path d={line} fill="none" stroke="#c2410c" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={last[0]} cy={last[1]} r="2.6" fill="#c2410c" />
-      <defs>
-        <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#e8895a" stopOpacity="0.45" />
-          <stop offset="1" stopColor="#e8895a" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat().format(value || 0);
 }
 
-function CountUp({ to }: { to: number }) {
-  const [n, setN] = useState(0);
-  useEffect(() => {
-    const start = performance.now();
-    const dur = 900;
-    let raf = 0;
-    const tick = (t: number) => {
-      const p = Math.min((t - start) / dur, 1);
-      setN(Math.round(to * (1 - Math.pow(1 - p, 3))));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [to]);
-  return <>{String(n).padStart(2, "0")}</>;
+function formatDate(value: string): string {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? "Date unavailable"
+    : date.toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
 }
 
-const statusStyles: Record<string, string> = {
-  Shortlisted: "bg-emerald-100/70 text-emerald-800 before:bg-emerald-500",
-  Interview: "bg-sky-100/70 text-sky-800 before:bg-sky-500",
-  "Under review": "bg-amber-100/70 text-amber-800 before:bg-amber-500",
-};
+function formatTime(value: string): string {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? "Time unavailable"
+    : date.toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      });
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+
+  return Number.isNaN(date.getTime())
+    ? "Date unavailable"
+    : date.toLocaleString(undefined, {
+        day: "numeric",
+        month: "short",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() || "")
+    .join("") || "?";
+}
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+
+  return "Good evening";
+}
+
+function getStatusStyle(status: string): string {
+  const normalized = status.toLowerCase();
+
+  if (normalized === "shortlisted" || normalized === "active") {
+    return "bg-emerald-50 text-emerald-800";
+  }
+
+  if (
+    normalized === "interview" ||
+    normalized === "confirmed"
+  ) {
+    return "bg-sky-50 text-sky-800";
+  }
+
+  if (
+    normalized === "under review" ||
+    normalized === "proposed" ||
+    normalized === "pending_review"
+  ) {
+    return "bg-amber-50 text-amber-800";
+  }
+
+  if (
+    normalized === "not shortlisted" ||
+    normalized === "failed" ||
+    normalized === "processing failed"
+  ) {
+    return "bg-rose-50 text-rose-800";
+  }
+
+  return "bg-stone-100 text-stone-700";
+}
 
 function StatusBadge({ status }: { status: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium before:h-1.5 before:w-1.5 before:rounded-full ${
-        statusStyles[status] ?? "bg-stone-100 text-stone-600 before:bg-stone-400"
-      }`}
+      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusStyle(status)}`}
     >
-      {status}
+      {status.replaceAll("_", " ")}
     </span>
   );
 }
 
-function MatchMeter({ score }: { score: number }) {
+function MetricCard({
+  label,
+  value,
+  note,
+  icon,
+  accent,
+}: {
+  label: string;
+  value: number;
+  note: string;
+  icon: string;
+  accent: string;
+}) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-stone-200/80">
-        <div className="bar h-full rounded-full bg-gradient-to-r from-orange-400 to-orange-700" style={{ width: `${score}%` }} />
+    <div className="group rounded-2xl border border-stone-200 bg-white p-5 transition duration-200 hover:-translate-y-1 hover:border-orange-200 hover:shadow-lg hover:shadow-stone-900/5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-medium text-stone-600">{label}</p>
+
+        <span
+          className={`flex h-10 w-10 items-center justify-center rounded-xl ${accent}`}
+        >
+          <Icon name={icon} />
+        </span>
       </div>
-      <span className="w-8 text-sm font-semibold tabular-nums text-stone-800">{score}</span>
+
+      <p className="mt-5 text-4xl font-bold tracking-tight text-stone-900 tabular-nums">
+        {formatNumber(value)}
+      </p>
+
+      <p className="mt-3 border-t border-stone-100 pt-3 text-xs text-stone-500">
+        {note}
+      </p>
     </div>
   );
 }
 
-/* ---------- page ---------- */
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50/70 px-5 py-10 text-center">
+      <p className="font-semibold text-stone-800">{title}</p>
+      <p className="mt-2 text-sm text-stone-500">{description}</p>
+    </div>
+  );
+}
 
 export default function Home() {
-  const [active, setActive] = useState("Overview");
-  const [filter, setFilter] = useState("All");
-  const [greeting, setGreeting] = useState("Welcome back");
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState("");
+  const [greeting, setGreeting] = useState("Welcome");
 
-  useEffect(() => {
-    const h = new Date().getHours();
-    setGreeting(h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening");
+  const loadDashboard = useCallback(async (manual = false) => {
+    if (manual) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    setError("");
+
+    try {
+      const response = await fetch("/api/dashboard", {
+        cache: "no-store",
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          result.error || "Unable to load dashboard information."
+        );
+      }
+
+      if (!result.metrics || !result.pipeline) {
+        throw new Error("Dashboard data is incomplete.");
+      }
+
+      setData(result as DashboardData);
+      setUpdatedAt(new Date().toLocaleTimeString());
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An error occurred while loading the dashboard."
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  const visible = filter === "All" ? candidates : candidates.filter((c) => c.status === filter);
-  const total = pipeline[0].count;
+  useEffect(() => {
+    setGreeting(getGreeting());
+    void loadDashboard();
+  }, [loadDashboard]);
+
+  const metrics = data?.metrics;
+  const pipeline = data?.pipeline;
+
+  const totalCandidates = metrics?.totalCandidates || 0;
+
+  const classifiedCandidates =
+    (pipeline?.pendingReview || 0) +
+    (pipeline?.shortlisted || 0) +
+    (pipeline?.notShortlisted || 0);
+
+  const otherCandidates = Math.max(
+    0,
+    totalCandidates - classifiedCandidates
+  );
+
+  const pipelineStages = [
+    {
+      label: "Pending review",
+      count: pipeline?.pendingReview || 0,
+      color: "#e7a34b",
+    },
+    {
+      label: "Shortlisted",
+      count: pipeline?.shortlisted || 0,
+      color: "#279a70",
+    },
+    {
+      label: "Not shortlisted",
+      count: pipeline?.notShortlisted || 0,
+      color: "#bf786c",
+    },
+    {
+      label: "Processing / other",
+      count: otherCandidates,
+      color: "#a8a29e",
+    },
+  ];
+
+  const nextInterview = data?.upcomingInterviews?.[0];
 
   return (
-    <main className="hs min-h-screen bg-[#f6f3ee] text-stone-900 antialiased">
+    <main className="min-h-screen bg-[#f6f3ee] text-stone-900 antialiased">
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
-        .hs { font-family: 'Inter', system-ui, sans-serif; }
-        .hs .display { font-family: 'Fraunces', Georgia, serif; letter-spacing: -0.02em; }
-        @keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-        @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-        @keyframes pulse-ring { 0% { box-shadow: 0 0 0 0 rgba(232,137,90,.55); } 100% { box-shadow: 0 0 0 10px rgba(232,137,90,0); } }
-        .rise { opacity: 0; animation: rise .6s cubic-bezier(.2,.7,.2,1) forwards; animation-delay: calc(var(--i, 0) * 70ms); }
-        .bar { transform-origin: left; animation: grow .9s cubic-bezier(.2,.7,.2,1) .25s both; }
-        .live { animation: pulse-ring 1.8s ease-out infinite; }
-        .lift { transition: transform .25s cubic-bezier(.2,.7,.2,1), box-shadow .25s ease, border-color .25s ease; }
-        .lift:hover { transform: translateY(-3px); box-shadow: 0 14px 30px -14px rgba(60,35,15,.25); border-color: #e3d9cb; }
-        @media (prefers-reduced-motion: reduce) { .rise, .bar, .live { animation: none; opacity: 1; } .lift { transition: none; } }
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap');
+
+        .hs {
+          font-family: 'DM Sans', system-ui, sans-serif;
+        }
+
+        .hs .display {
+          font-family: 'Manrope', system-ui, sans-serif;
+          letter-spacing: -0.04em;
+        }
+
+        @keyframes entrance {
+          from {
+            opacity: 0;
+            transform: translateY(12px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .hs-enter {
+          animation: entrance .5s ease both;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+          .hs-enter {
+            animation: none;
+          }
+        }
       `}</style>
 
-      <div className="flex min-h-screen">
-        {/* sidebar */}
+      <div className="hs flex min-h-screen">
+        {/* Desktop sidebar */}
         <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-[#1b1714] text-stone-300 lg:flex">
-          <div className="flex items-center gap-3 px-6 pb-6 pt-7">
-            <div className="display flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-700 text-xl font-semibold text-white">
+          <Link
+            href="/"
+            className="flex items-center gap-3 px-6 pb-7 pt-7"
+          >
+            <div className="display flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-700 text-xl font-extrabold text-white shadow-lg shadow-orange-950/30">
               H
             </div>
+
             <div>
-              <h1 className="display text-lg font-semibold text-stone-50">HireSync</h1>
-              <p className="text-[11px] text-stone-500">Recruit. Schedule. Hire.</p>
+              <h1 className="display text-xl font-extrabold text-white">
+                HireSync
+              </h1>
+              <p className="text-xs text-stone-400">
+                Recruit. Schedule. Hire.
+              </p>
             </div>
+          </Link>
+
+          <div className="px-6 pb-3 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-500">
+            Workspace
           </div>
 
-          <nav className="mt-4 flex-1 space-y-1 px-3">
-            <p className="mb-2 px-3 text-[11px] font-medium uppercase tracking-[0.14em] text-stone-600">Workspace</p>
+          <nav className="flex-1 space-y-1 px-3">
             {navigation.map((item) => {
-              const on = active === item.label;
+              const isActive = item.label === "Overview";
+
+              let badge: number | null = null;
+
+              if (item.count === "jobs") {
+                badge = metrics?.activeJobs ?? null;
+              } else if (item.count === "candidates") {
+                badge = metrics?.totalCandidates ?? null;
+              } else if (item.count === "interviews") {
+                badge = metrics?.interviewsNextSevenDays ?? null;
+              }
+
               return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={() => setActive(item.label)}
-                  className={`group relative flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors duration-200 ${
-                    on ? "bg-white/[0.07] text-white" : "text-stone-400 hover:bg-white/[0.04] hover:text-stone-100"
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={`group relative flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${
+                    isActive
+                      ? "bg-white/[0.08] text-white"
+                      : "text-stone-400 hover:bg-white/[0.05] hover:text-white"
                   }`}
                 >
-                  <span className={`absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r bg-orange-500 transition-all duration-300 ${on ? "opacity-100" : "scale-y-0 opacity-0"}`} />
-                  <Icon name={item.icon} className={`h-[18px] w-[18px] transition-colors ${on ? "text-orange-400" : "text-stone-500 group-hover:text-stone-300"}`} />
+                  <span
+                    className={`absolute left-0 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-r bg-orange-500 ${
+                      isActive ? "opacity-100" : "opacity-0"
+                    }`}
+                  />
+
+                  <Icon
+                    name={item.icon}
+                    className={`h-[19px] w-[19px] ${
+                      isActive
+                        ? "text-orange-400"
+                        : "text-stone-500 group-hover:text-stone-200"
+                    }`}
+                  />
+
                   <span className="flex-1">{item.label}</span>
-                  {item.badge && <span className="rounded-md bg-white/[0.06] px-1.5 py-0.5 text-[11px] tabular-nums text-stone-400">{item.badge}</span>}
-                </button>
+
+                  {badge !== null && badge > 0 && (
+                    <span className="rounded-md bg-white/[0.07] px-2 py-0.5 text-[11px] text-stone-300">
+                      {formatNumber(badge)}
+                    </span>
+                  )}
+                </Link>
               );
             })}
           </nav>
 
-          <div className="m-4 flex items-center gap-3 rounded-xl border border-white/[0.06] p-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-orange-500/15 text-sm font-semibold text-orange-300">HR</div>
-            <div>
-              <p className="text-sm font-medium text-stone-100">HR Admin</p>
-              <p className="text-xs text-stone-500">Administrator</p>
-            </div>
+          <div className="m-4 rounded-xl border border-white/10 bg-white/[0.03] p-4">
+            <p className="text-xs font-semibold text-stone-200">
+              Hiring workspace
+            </p>
+
+            <p className="mt-1 text-xs leading-5 text-stone-500">
+              AI-powered candidate intelligence and interview management.
+            </p>
+
+            <Link
+              href="/interviews/feedback"
+              className="mt-3 inline-flex items-center gap-2 text-xs font-semibold text-orange-300 hover:text-orange-200"
+            >
+              Interview feedback
+              <Icon name="arrow" className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </aside>
 
+        {/* Main content */}
         <section className="min-w-0 flex-1">
-          {/* header */}
-          <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-4 border-b border-stone-200/70 bg-[#f6f3ee]/80 px-5 py-4 backdrop-blur-md sm:px-10">
-            <div className="relative w-full max-w-xs">
-              <Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-stone-400" />
-              <input
-                placeholder="Search candidates, jobs…"
-                className="w-full rounded-full border border-stone-200 bg-white/70 py-2 pl-9 pr-4 text-sm outline-none transition placeholder:text-stone-400 focus:border-orange-300 focus:bg-white focus:ring-4 focus:ring-orange-100"
-              />
+          {/* Top bar */}
+          <header className="sticky top-0 z-20 border-b border-stone-200/80 bg-[#f6f3ee]/90 px-5 py-4 backdrop-blur-md sm:px-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-stone-500">
+                  Hiring workspace
+                </p>
+                <p className="mt-1 text-sm font-semibold text-stone-800">
+                  Overview
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void loadDashboard(true)}
+                  disabled={loading || refreshing}
+                  className="inline-flex items-center gap-2 rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-semibold text-stone-700 transition hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50"
+                >
+                  <Icon
+                    name="refresh"
+                    className={`h-4 w-4 ${
+                      refreshing ? "animate-spin" : ""
+                    }`}
+                  />
+                  <span className="hidden sm:inline">
+                    Refresh data
+                  </span>
+                  <span className="sm:hidden">Refresh</span>
+                </button>
+
+                <Link
+                  href="/jobs"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#1b1714] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-800"
+                >
+                  + Create job
+                </Link>
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <button type="button" aria-label="Notifications" className="relative rounded-full border border-stone-200 bg-white/70 p-2.5 text-stone-600 transition hover:bg-white hover:text-stone-900">
-                <Icon name="bell" />
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-orange-500 ring-2 ring-[#f6f3ee]" />
-              </button>
-              <button
-                type="button"
-                className="group inline-flex items-center gap-2 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-medium text-white shadow-[0_8px_20px_-8px_rgba(0,0,0,.5)] transition duration-200 hover:-translate-y-0.5 hover:bg-orange-700 active:translate-y-0"
-              >
-                <Icon name="plus" className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
-                Create job
-              </button>
-            </div>
+
+            {/* Mobile navigation */}
+            <nav className="mt-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+              {navigation.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`shrink-0 rounded-lg px-3 py-2 text-xs font-semibold ${
+                    item.label === "Overview"
+                      ? "bg-stone-900 text-white"
+                      : "border border-stone-200 bg-white text-stone-700"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
           </header>
 
-          <div className="mx-auto max-w-7xl space-y-8 px-5 py-8 sm:px-10">
-            {/* hero */}
-            <div className="rise relative overflow-hidden rounded-3xl bg-[#1b1714] p-7 text-stone-100 sm:p-10" style={{ ["--i" as string]: 0 }}>
-              <div className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full bg-orange-600/30 blur-3xl" />
-              <div className="pointer-events-none absolute -bottom-24 right-40 h-56 w-56 rounded-full bg-amber-400/10 blur-3xl" />
-              <div className="relative flex flex-wrap items-end justify-between gap-8">
-                <div className="max-w-xl">
-                  <p className="text-sm text-stone-400">Friday, 30 October</p>
-                  <h2 className="display mt-2 text-4xl leading-[1.1] sm:text-5xl">
-                    {greeting}, <span className="italic text-orange-300">HR Admin.</span>
+          <div className="mx-auto max-w-[1500px] space-y-7 px-5 py-7 sm:px-8 sm:py-9">
+            {/* Hero */}
+            <section className="hs-enter relative overflow-hidden rounded-3xl bg-[#1b1714] p-7 text-white shadow-xl shadow-stone-900/5 sm:p-9">
+              <div className="pointer-events-none absolute -right-20 -top-24 h-80 w-80 rounded-full bg-orange-600/25 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-32 right-1/3 h-64 w-64 rounded-full bg-amber-500/10 blur-3xl" />
+
+              <div className="relative grid gap-8 xl:grid-cols-[1fr_auto] xl:items-end">
+                <div className="max-w-2xl">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-orange-200">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                    Your recruitment command centre
+                  </div>
+
+                  <h2 className="display mt-5 text-4xl font-extrabold leading-[1.1] sm:text-5xl">
+                    {greeting},{" "}
+                    <span className="italic text-orange-300">
+                      let's hire better.
+                    </span>
                   </h2>
-                  <p className="mt-4 text-stone-400">
-                    Three interviews today and one offer due for a decision. Your pipeline grew by 18 candidates this week.
+
+                  <p className="mt-4 max-w-xl text-sm leading-7 text-stone-300 sm:text-base">
+                    Track your hiring pipeline, understand candidate
+                    quality and manage interviews in one connected
+                    workspace.
+                  </p>
+
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Link
+                      href="/candidates"
+                      className="rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-orange-400"
+                    >
+                      Explore candidates
+                    </Link>
+
+                    <Link
+                      href="/interviews"
+                      className="rounded-xl border border-white/20 bg-white/[0.06] px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                    >
+                      Manage interviews
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="min-w-[250px] rounded-2xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur-sm">
+                  <p className="text-xs font-semibold uppercase tracking-[0.17em] text-stone-400">
+                    Next interview
+                  </p>
+
+                  {nextInterview ? (
+                    <>
+                      <div className="mt-4 flex items-center gap-3">
+                        <div className="flex h-11 w-11 items-center justify-center rounded-full bg-orange-500/20 text-sm font-bold text-orange-200">
+                          {getInitials(nextInterview.candidateName)}
+                        </div>
+
+                        <div className="min-w-0">
+                          <p className="truncate font-semibold text-white">
+                            {nextInterview.candidateName}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-stone-400">
+                            {nextInterview.jobTitle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/10 pt-4">
+                        <div>
+                          <p className="text-xs text-stone-400">
+                            Scheduled
+                          </p>
+                          <p className="mt-1 text-sm font-semibold text-orange-200">
+                            {formatDateTime(nextInterview.startAt)}
+                          </p>
+                        </div>
+
+                        <Link
+                          href="/interviews"
+                          className="rounded-lg bg-white/10 p-2.5 text-white hover:bg-white/20"
+                          aria-label="Open interviews"
+                        >
+                          <Icon name="briefArrow" />
+                        </Link>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-4">
+                      <p className="font-semibold text-white">
+                        No upcoming interviews
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-stone-400">
+                        Interviews scheduled over the next seven days
+                        will appear here.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* Error */}
+            {error && (
+              <section className="rounded-xl border border-rose-200 bg-rose-50 p-5">
+                <p className="font-semibold text-rose-900">
+                  Dashboard data could not be loaded
+                </p>
+
+                <p className="mt-1 text-sm text-rose-800">{error}</p>
+
+                <button
+                  type="button"
+                  onClick={() => void loadDashboard(true)}
+                  className="mt-3 text-sm font-bold text-rose-900 underline"
+                >
+                  Try again
+                </button>
+              </section>
+            )}
+
+            {/* Metric cards */}
+            <section>
+              <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+                <div>
+                  <h3 className="display text-xl font-extrabold">
+                    Hiring at a glance
+                  </h3>
+                  <p className="mt-1 text-sm text-stone-500">
+                    Current figures from your recruitment workspace.
                   </p>
                 </div>
-                <div className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/[0.05] p-4 pr-6 backdrop-blur">
-                  <span className="live relative flex h-3 w-3 rounded-full bg-orange-400" />
-                  <div>
-                    <p className="text-xs uppercase tracking-wider text-stone-500">Up next</p>
-                    <p className="font-medium">Aarav Sharma · HR round</p>
-                    <p className="text-sm text-stone-400">12:00 PM · Frontend Developer</p>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            {/* metrics */}
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {metrics.map((m, i) => (
-                <div key={m.label} className="rise lift rounded-2xl border border-stone-200/80 bg-white p-5" style={{ ["--i" as string]: i + 1 }}>
-                  <p className="text-sm text-stone-500">{m.label}</p>
-                  <div className="mt-3 flex items-end justify-between">
-                    <p className="display text-5xl font-medium tabular-nums text-stone-900">
-                      <CountUp to={m.value} />
-                    </p>
-                    <Sparkline data={m.spark} />
-                  </div>
-                  <div className="mt-4 flex items-center justify-between border-t border-stone-100 pt-3 text-xs">
-                    <span className="text-stone-500">{m.note}</span>
-                    <span className="font-medium text-orange-700">{m.trend}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* pipeline */}
-            <div className="rise rounded-2xl border border-stone-200/80 bg-white p-6" style={{ ["--i" as string]: 5 }}>
-              <div className="flex items-baseline justify-between">
-                <h3 className="display text-xl font-medium">Hiring pipeline</h3>
-                <p className="text-xs text-stone-500">Conversion from applied to offer: {((pipeline[3].count / total) * 100).toFixed(1)}%</p>
-              </div>
-              <div className="mt-5 flex h-3 gap-1 overflow-hidden rounded-full">
-                {pipeline.map((p) => (
-                  <div key={p.stage} className="bar rounded-full" style={{ width: `${Math.max((p.count / total) * 100, 4)}%`, background: p.color }} />
-                ))}
-              </div>
-              <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-                {pipeline.map((p) => (
-                  <div key={p.stage} className="flex items-center gap-2.5">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} />
-                    <span className="text-sm text-stone-600">{p.stage}</span>
-                    <span className="ml-auto text-sm font-semibold tabular-nums">{p.count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-3">
-              {/* candidates */}
-              <div className="rise overflow-hidden rounded-2xl border border-stone-200/80 bg-white xl:col-span-2" style={{ ["--i" as string]: 6 }}>
-                <div className="flex flex-wrap items-center justify-between gap-3 px-6 pb-3 pt-6">
-                  <div>
-                    <h3 className="display text-xl font-medium">Recent candidates</h3>
-                    <p className="mt-1 text-xs text-stone-500">Latest activity across your hiring pipeline</p>
-                  </div>
-                  <button type="button" className="group inline-flex items-center gap-1.5 text-sm font-medium text-orange-700">
-                    View all
-                    <Icon name="arrow" className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-1" />
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap gap-2 px-6 pb-4">
-                  {filters.map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setFilter(f)}
-                      className={`rounded-full px-3.5 py-1.5 text-xs font-medium transition duration-200 ${
-                        filter === f ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-600 hover:bg-stone-200/70"
-                      }`}
-                    >
-                      {f}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="text-[11px] uppercase tracking-[0.12em] text-stone-400">
-                      <tr className="border-y border-stone-100">
-                        <th className="px-6 py-3 font-medium">Candidate</th>
-                        <th className="px-6 py-3 font-medium">Position</th>
-                        <th className="px-6 py-3 font-medium">Match</th>
-                        <th className="px-6 py-3 font-medium">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {visible.map((c) => (
-                        <tr key={c.name} className="group border-b border-stone-100 last:border-0 transition-colors duration-200 hover:bg-orange-50/40">
-                          <td className="whitespace-nowrap px-6 py-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-orange-100 to-amber-100 text-xs font-semibold text-orange-800 transition-transform duration-300 group-hover:scale-110">
-                                {c.initials}
-                              </div>
-                              <span className="font-medium text-stone-800">{c.name}</span>
-                            </div>
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-4 text-stone-600">{c.role}</td>
-                          <td className="whitespace-nowrap px-6 py-4">
-                            <MatchMeter score={c.score} />
-                          </td>
-                          <td className="whitespace-nowrap px-6 py-4">
-                            <StatusBadge status={c.status} />
-                          </td>
-                        </tr>
-                      ))}
-                      {visible.length === 0 && (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-10 text-center text-stone-400">
-                            No candidates in this stage yet.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                {updatedAt && (
+                  <p className="text-xs text-stone-400">
+                    Updated at {updatedAt}
+                  </p>
+                )}
               </div>
 
-              {/* interviews */}
-              <div className="rise rounded-2xl border border-stone-200/80 bg-white" style={{ ["--i" as string]: 7 }}>
-                <div className="px-6 pb-4 pt-6">
-                  <h3 className="display text-xl font-medium">Today&apos;s interviews</h3>
-                  <p className="mt-1 text-xs text-stone-500">Your next scheduled conversations</p>
-                </div>
-
-                <ol className="relative px-6 pb-2">
-                  <span className="absolute bottom-6 left-[34px] top-2 w-px bg-stone-200" />
-                  {interviews.map((it, i) => (
-                    <li key={it.name} className="relative flex gap-4 pb-6">
-                      <span
-                        className={`relative z-[1] mt-1 h-5 w-5 shrink-0 rounded-full border-4 border-white ring-1 ${
-                          it.done ? "bg-stone-300 ring-stone-200" : i === 1 ? "live bg-orange-500 ring-orange-300" : "bg-orange-200 ring-orange-200"
-                        }`}
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {loading && !data
+                  ? Array.from({ length: 4 }).map((_, index) => (
+                      <div
+                        key={index}
+                        className="h-40 animate-pulse rounded-2xl border border-stone-200 bg-white"
                       />
-                      <div className="min-w-0 flex-1 rounded-xl p-3 -m-3 transition-colors duration-200 hover:bg-stone-50">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className={`text-sm font-semibold ${it.done ? "text-stone-400 line-through decoration-stone-300" : ""}`}>{it.name}</p>
-                          <span className="text-xs font-semibold tabular-nums text-orange-700">{it.time}</span>
+                    ))
+                  : (
+                    <>
+                      <MetricCard
+                        label="Active jobs"
+                        value={metrics?.activeJobs || 0}
+                        note={`${formatNumber(metrics?.totalJobs || 0)} total jobs in your workspace`}
+                        icon="briefcase"
+                        accent="bg-orange-50 text-orange-700"
+                      />
+
+                      <MetricCard
+                        label="Total candidates"
+                        value={metrics?.totalCandidates || 0}
+                        note="Applications received across your workspace"
+                        icon="users"
+                        accent="bg-blue-50 text-blue-700"
+                      />
+
+                      <MetricCard
+                        label="Shortlisted"
+                        value={metrics?.shortlisted || 0}
+                        note="Candidates selected for further consideration"
+                        icon="grid"
+                        accent="bg-emerald-50 text-emerald-700"
+                      />
+
+                      <MetricCard
+                        label="Interviews next 7 days"
+                        value={metrics?.interviewsNextSevenDays || 0}
+                        note="Proposed, confirmed or reschedule requested"
+                        icon="calendar"
+                        accent="bg-violet-50 text-violet-700"
+                      />
+                    </>
+                  )}
+              </div>
+            </section>
+
+            {/* Pipeline */}
+            <section className="rounded-2xl border border-stone-200 bg-white p-6 sm:p-7">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h3 className="display text-xl font-extrabold">
+                    Candidate decision pipeline
+                  </h3>
+                  <p className="mt-1 text-sm text-stone-500">
+                    How applications are currently distributed.
+                  </p>
+                </div>
+
+                <Link
+                  href="/candidates"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-orange-800 hover:text-orange-600"
+                >
+                  View candidates
+                  <Icon name="arrow" className="h-4 w-4" />
+                </Link>
+              </div>
+
+              <div className="mt-7">
+                {loading && !data ? (
+                  <div className="h-3 animate-pulse rounded-full bg-stone-100" />
+                ) : (
+                  <>
+                    <div className="flex h-4 gap-1.5 overflow-hidden rounded-full bg-stone-100">
+                      {pipelineStages.map((stage) => (
+                        <div
+                          key={stage.label}
+                          title={`${stage.label}: ${stage.count}`}
+                          style={{
+                            width:
+                              totalCandidates > 0
+                                ? `${(stage.count / totalCandidates) * 100}%`
+                                : "0%",
+                            background: stage.color,
+                          }}
+                          className="min-w-0 rounded-full transition-all duration-500"
+                        />
+                      ))}
+                    </div>
+
+                    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                      {pipelineStages.map((stage) => {
+                        const percentage =
+                          totalCandidates > 0
+                            ? (stage.count / totalCandidates) * 100
+                            : 0;
+
+                        return (
+                          <div key={stage.label}>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className="h-2.5 w-2.5 rounded-full"
+                                style={{ background: stage.color }}
+                              />
+                              <span className="text-sm text-stone-600">
+                                {stage.label}
+                              </span>
+                            </div>
+
+                            <div className="mt-2 flex items-baseline gap-2">
+                              <span className="text-2xl font-bold tabular-nums">
+                                {formatNumber(stage.count)}
+                              </span>
+
+                              <span className="text-xs text-stone-400">
+                                {percentage.toFixed(1)}%
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
+
+            {/* Recent candidates and interviews */}
+            <section className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
+              {/* Recent candidates */}
+              <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white">
+                <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5">
+                  <div>
+                    <h3 className="display text-xl font-extrabold">
+                      Recent candidates
+                    </h3>
+
+                    <p className="mt-1 text-sm text-stone-500">
+                      The latest applications received.
+                    </p>
+                  </div>
+
+                  <Link
+                    href="/candidates"
+                    className="text-sm font-semibold text-orange-800 hover:text-orange-600"
+                  >
+                    View all →
+                  </Link>
+                </div>
+
+                {loading && !data ? (
+                  <div className="space-y-4 p-6">
+                    {[1, 2, 3, 4].map((item) => (
+                      <div
+                        key={item}
+                        className="h-14 animate-pulse rounded-lg bg-stone-100"
+                      />
+                    ))}
+                  </div>
+                ) : data?.recentCandidates?.length ? (
+                  <div className="divide-y divide-stone-100">
+                    {data.recentCandidates.map((candidate) => (
+                      <Link
+                        key={candidate.id}
+                        href="/candidates"
+                        className="group flex flex-wrap items-center justify-between gap-3 px-6 py-4 transition hover:bg-orange-50/40"
+                      >
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-100 to-amber-100 text-xs font-bold text-orange-900">
+                            {getInitials(candidate.name)}
+                          </div>
+
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-stone-900">
+                              {candidate.name}
+                            </p>
+
+                            <p className="mt-1 truncate text-xs text-stone-500">
+                              {candidate.jobTitle}
+                            </p>
+                          </div>
                         </div>
-                        <p className="mt-0.5 text-xs text-stone-500">{it.role}</p>
-                        <span className="mt-2 inline-block rounded-md bg-stone-100 px-2 py-0.5 text-[11px] text-stone-600">{it.type}</span>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="text-right">
+                            <p className="text-xs text-stone-400">
+                              AI score
+                            </p>
+
+                            <p className="mt-1 text-sm font-bold tabular-nums text-stone-800">
+                              {candidate.score === null
+                                ? "—"
+                                : `${candidate.score.toFixed(1)}/100`}
+                            </p>
+                          </div>
+
+                          <StatusBadge status={candidate.status} />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-6">
+                    <EmptyState
+                      title="No candidate applications yet"
+                      description="Upload your first resume to start building your hiring pipeline."
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Upcoming interviews */}
+              <div className="rounded-2xl border border-stone-200 bg-white">
+                <div className="flex items-start justify-between gap-3 px-6 py-5">
+                  <div>
+                    <h3 className="display text-xl font-extrabold">
+                      Upcoming interviews
+                    </h3>
+
+                    <p className="mt-1 text-sm text-stone-500">
+                      Scheduled over the next seven days.
+                    </p>
+                  </div>
+
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-50 text-orange-800">
+                    <Icon name="calendar" className="h-5 w-5" />
+                  </div>
+                </div>
+
+                {loading && !data ? (
+                  <div className="space-y-3 p-6">
+                    {[1, 2, 3].map((item) => (
+                      <div
+                        key={item}
+                        className="h-20 animate-pulse rounded-xl bg-stone-100"
+                      />
+                    ))}
+                  </div>
+                ) : data?.upcomingInterviews?.length ? (
+                  <div className="space-y-3 px-5 pb-5">
+                    {data.upcomingInterviews.map((interview) => (
+                      <div
+                        key={interview.id}
+                        className="rounded-xl border border-stone-200 p-4 transition hover:border-orange-200 hover:bg-orange-50/30"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-bold text-stone-700">
+                              {getInitials(interview.candidateName)}
+                            </div>
+
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-bold text-stone-900">
+                                {interview.candidateName}
+                              </p>
+
+                              <p className="mt-1 truncate text-xs text-stone-500">
+                                {interview.jobTitle}
+                              </p>
+                            </div>
+                          </div>
+
+                          <StatusBadge status={interview.status} />
+                        </div>
+
+                        <div className="mt-3 flex items-center justify-between gap-2 border-t border-stone-100 pt-3">
+                          <div>
+                            <p className="text-xs text-stone-500">
+                              <span className="font-semibold text-stone-800">
+                                {formatDate(interview.startAt)}
+                              </span>
+                            </p>
+
+                            <p className="mt-1 text-xs text-stone-500">
+                              {formatTime(interview.startAt)}
+                              {" – "}
+                              {formatTime(interview.endAt)}
+                            </p>
+                          </div>
+
+                          {interview.status === "confirmed" &&
+                          interview.meetingUrl ? (
+                            <Link
+                              href={`/interviews/${encodeURIComponent(interview.id)}/room`}
+                              className="rounded-lg bg-stone-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-orange-800"
+                            >
+                              Join room
+                            </Link>
+                          ) : (
+                            <Link
+                              href="/interviews"
+                              className="text-xs font-semibold text-orange-800 hover:underline"
+                            >
+                              Manage →
+                            </Link>
+                          )}
+                        </div>
                       </div>
-                    </li>
-                  ))}
-                </ol>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-5 pb-5">
+                    <EmptyState
+                      title="No upcoming interviews"
+                      description="Your scheduled candidate conversations will appear here."
+                    />
+                  </div>
+                )}
 
                 <div className="border-t border-stone-100 p-4">
-                  <button type="button" className="w-full rounded-xl border border-stone-200 py-2.5 text-sm font-medium text-stone-700 transition duration-200 hover:border-stone-900 hover:bg-stone-900 hover:text-white">
-                    View interview schedule
-                  </button>
+                  <Link
+                    href="/interviews"
+                    className="block w-full rounded-xl border border-stone-200 py-3 text-center text-sm font-semibold text-stone-700 transition hover:border-stone-900 hover:bg-stone-900 hover:text-white"
+                  >
+                    Open interview schedule
+                  </Link>
                 </div>
               </div>
-            </div>
+            </section>
 
-            <p className="pb-2 text-center text-xs text-stone-400">HireSync · Hiring, handled.</p>
+            {/* Recent jobs */}
+            <section className="rounded-2xl border border-stone-200 bg-white">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-5">
+                <div>
+                  <h3 className="display text-xl font-extrabold">
+                    Recent job openings
+                  </h3>
+                  <p className="mt-1 text-sm text-stone-500">
+                    Your latest recruitment opportunities.
+                  </p>
+                </div>
+
+                <Link
+                  href="/jobs"
+                  className="text-sm font-semibold text-orange-800 hover:text-orange-600"
+                >
+                  All jobs →
+                </Link>
+              </div>
+
+              {loading && !data ? (
+                <div className="space-y-3 p-6">
+                  {[1, 2, 3].map((item) => (
+                    <div
+                      key={item}
+                      className="h-12 animate-pulse rounded-lg bg-stone-100"
+                    />
+                  ))}
+                </div>
+              ) : data?.recentJobs?.length ? (
+                <div className="divide-y divide-stone-100">
+                  {data.recentJobs.map((job) => (
+                    <Link
+                      key={job.id}
+                      href="/jobs"
+                      className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 transition hover:bg-orange-50/40"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-stone-900">
+                          {job.title}
+                        </p>
+                        <p className="mt-1 text-xs text-stone-500">
+                          Created {formatDate(job.created_at)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <StatusBadge status={job.status} />
+                        <Icon
+                          name="briefArrow"
+                          className="h-4 w-4 text-stone-400"
+                        />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-6 pb-6">
+                  <EmptyState
+                    title="No jobs created yet"
+                    description="Create a job opening to start recruiting candidates."
+                  />
+                </div>
+              )}
+            </section>
+
+            {/* Footer */}
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200 pt-5 pb-3 text-xs text-stone-500">
+              <p>HireSync · Hiring, handled.</p>
+
+              <p>
+                {updatedAt
+                  ? `Live workspace data · Updated ${updatedAt}`
+                  : "Connected recruitment workspace"}
+              </p>
+            </footer>
           </div>
         </section>
       </div>

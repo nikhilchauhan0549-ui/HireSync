@@ -24,3 +24,51 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+/* HireSync typography system */
+
+body {
+  font-family: var(--font-lato), Arial, sans-serif;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+button,
+nav,
+th {
+  font-family: var(--font-roboto), Arial, sans-serif;
+  font-style: normal;
+}
+/* HireSync interview scheduling: improve readability */
+
+.interview-scheduling-page {
+  color: #111827;
+}
+
+.interview-scheduling-page label,
+.interview-scheduling-page label span {
+  color: #374151 !important;
+}
+
+.interview-scheduling-page input,
+.interview-scheduling-page select,
+.interview-scheduling-page textarea {
+  color: #111827 !important;
+  background-color: #ffffff !important;
+}
+
+.interview-scheduling-page input::placeholder,
+.interview-scheduling-page textarea::placeholder {
+  color: #9ca3af !important;
+  opacity: 1;
+}
+
+.interview-scheduling-page select option {
+  color: #111827;
+  background-color: #ffffff;
+}
